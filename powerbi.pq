@@ -1,4 +1,4 @@
-﻿[Version = "1.0.2"]
+[Version = "1.0.3"]
 section DocuWareRefreshTest;
 
 // When set to true, additional trace information will be written out to the User log.
@@ -93,7 +93,7 @@ DocuWareRefreshTest.ContentLoad = (url as text) =>
         url = if Text.Contains(url, "format=Json", Comparer.OrdinalIgnoreCase) then
             Text.Replace(url, "format=Json", "format=Csv")
         else if not Text.Contains(url, "format=Csv", Comparer.OrdinalIgnoreCase) then
-            url & "?format=Csv"
+            url & (if Text.Contains(url, "?") then "&" else "?") & "format=Csv"
         else
             url,
         
@@ -169,7 +169,8 @@ StartLogin = (resourceUrl, state, display) =>
                     code_challenge = codeVerifier,
                     state = state,
                     redirect_uri = redirect_uri,
-                    scope = "docuware.platform dwprofile openid"
+                    // offline_access is required for the identity service to issue a refresh token
+                    scope = "docuware.platform dwprofile openid offline_access"
                 ]
             )
     in
@@ -195,9 +196,9 @@ FinishLogin = (context, callbackUri, state) =>
 
 // Verifier is optional to support both the original FinishLogin call
 // (which has a verifier) and the Refresh call (which does not).
-TokenMethod = (code, grant_type, optional context) =>
+TokenMethod = (code, grant_type, context as record) =>
     let
-        codeVerifier = if (context[codeVerifier] <> null) then [code_verifier = context[codeVerifier]] else [],
+        codeVerifier = if (context[codeVerifier]? <> null) then [code_verifier = context[codeVerifier]] else [],
         codeParameter = if (grant_type = "authorization_code") then [code = code] else [refresh_token = code],
         query = codeVerifier
             & codeParameter
@@ -228,7 +229,13 @@ TokenMethod = (code, grant_type, optional context) =>
         else
             Parts;
 
-Refresh = (resourceUrl, refresh_token) => TokenMethod(refresh_token, "refresh_token");
+// The token URL is not round-tripped on refresh, so rebuild it from the resource URL.
+Refresh = (resourceUrl, refresh_token) =>
+    TokenMethod(
+        refresh_token,
+        "refresh_token",
+        [ TokenUrl = Uri.Combine(ExtractIdentityServiceBaseUrl(resourceUrl), "token") ]
+    );
 
 Base64Url.Encode = (s) => Text.Replace(Text.Replace(Text.BeforeDelimiter(Binary.ToText(s,BinaryEncoding.Base64),"="),"+","-"),"/","_");
 
