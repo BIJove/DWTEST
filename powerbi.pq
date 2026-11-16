@@ -1,4 +1,4 @@
-[Version = "1.0.3"]
+[Version = "1.0.4"]
 section DocuWareRefreshTest;
 
 // When set to true, additional trace information will be written out to the User log.
@@ -169,8 +169,7 @@ StartLogin = (resourceUrl, state, display) =>
                     code_challenge = codeVerifier,
                     state = state,
                     redirect_uri = redirect_uri,
-                    // offline_access is required for the identity service to issue a refresh token
-                    scope = "docuware.platform dwprofile openid offline_access"
+                    scope = "docuware.platform dwprofile openid"
                 ]
             )
     in
